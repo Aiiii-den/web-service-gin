@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -26,8 +27,14 @@ func main() {
 	router.GET("/albums/:id", getAlbumByID)
 	router.POST("/albums", postAlbums)
 	router.PUT("/albums/:id", updateAlbumByID)
+	router.DELETE("albums/:id", deleteAlbumByID)
+	router.DELETE("/albums", deleteAllAlbums)
 
-	router.Run("localhost:8080")
+	err := router.Run("localhost:8080")
+	if err != nil {
+		fmt.Print("Couldn't run service")
+		return
+	}
 }
 
 // getAlbums responds with the list of all albums as JSON.
@@ -54,25 +61,21 @@ func getAlbumByID(c *gin.Context) {
 func updateAlbumByID(c *gin.Context) {
 	id := c.Param("id")
 
-	// Create new album object
+	// Create a new album object
 	var updatedAlbum album
-	updatedAlbum.Title=c.Param("title")
-	updatedAlbum.Artist=c.Param("artist")
-	updatedAlbum.Price=c.Param("price")
 
-	// Check if id exists, if yes update album
+	// Bind the JSON request body to the updatedAlbum variable
+	if err := c.ShouldBindJSON(&updatedAlbum); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+		return
+	}
+
+	// Check if id exists, if yes, update album
 	found := false
 	for i, a := range albums {
 		if a.ID == id {
-			// Bind the JSON request body to the updatedAlbum variable
-			if err := c.ShouldBindJSON(&updatedAlbum); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
-				return
-			}
-
 			// Update the existing album with the new data
 			albums[i] = updatedAlbum
-
 			found = true
 			break
 		}
@@ -87,7 +90,6 @@ func updateAlbumByID(c *gin.Context) {
 	// Return a success response
 	c.JSON(http.StatusOK, gin.H{"message": "Album updated successfully"})
 }
-}
 
 // postAlbums adds an album from JSON received in the request body.
 func postAlbums(c *gin.Context) {
@@ -100,4 +102,34 @@ func postAlbums(c *gin.Context) {
 	// Add the new album to the slice.
 	albums = append(albums, newAlbum)
 	c.IndentedJSON(http.StatusCreated, newAlbum)
+}
+
+func deleteAlbumByID(c *gin.Context) {
+	id := c.Param("id")
+
+	// Find the index of the album with the given ID
+	index := -1
+	for i, a := range albums {
+		if a.ID == id {
+			index = i
+			break
+		}
+	}
+
+	// If the album with the given ID was not found, return a 404 response
+	if index == -1 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Album not found"})
+		return
+	}
+
+	// Remove the album at the specified index
+	albums = append(albums[:index], albums[index+1:]...)
+
+	// Return a success response
+	c.JSON(http.StatusOK, gin.H{"message": "Album deleted successfully"})
+}
+
+func deleteAllAlbums(c *gin.Context) {
+	albums = albums[:0]
+	c.JSON(http.StatusOK, gin.H{"message": "All albums removed successfully"})
 }
